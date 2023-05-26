@@ -9,6 +9,7 @@ struct impl {
 	float value;
 	float grad;
 	grad_fn* gradfn;
+	char varname = ' ';
 	void backward(float gradient = 1.f);
 	int countElems() const;
 	std::string printExpr() const;
@@ -103,7 +104,9 @@ public:
 	std::string printExpr() const {
 		return im->printExpr();
 	}
-
+	char& varName() const {
+		return im->varname;
+	}
 	friend VE operator+(VE const& l, VE const& r) {
 		return VE(l.value()+r.value(), 0, new addGrad(l.im, r.im));
 	}
@@ -190,18 +193,22 @@ int impl::getPrio() const {
 }
 std::string impl::printExpr() const {
 	if (gradfn) {
-		auto pl = gradfn->parents[0], pr = gradfn->parents[1];
+		auto pl = gradfn->parents[0];
 		auto l = pl->printExpr(); if (pl->getPrio() <= getPrio()) l = bracket(l);
-		auto r = pr->printExpr(); if (pr->getPrio() <= getPrio()) r = bracket(r);
-		return gradfn->print(l,r);
+		std::string r;
+		if (gradfn->parents.size()>1) {
+			auto pr = gradfn->parents[1];
+			r = pr->printExpr(); if (pr->getPrio() <= getPrio()) r = bracket(r);
+		}
+		return gradfn->print(l, r);
 	}
 	else {
-		return tostr(value);
+		return varname == ' ' ? tostr(value) : std::string(1,varname);
 	}
 }
 
 #include <random>
-std::mt19937 gen(234);
+std::mt19937 gen(16); // Works for randomToken(8,8,{2,5,7})
 
 VE randomToken(int minDepth, int maxDepth, std::vector<VE> const& vars) {
 	std::uniform_int_distribution<> distrib((maxDepth<=0)*4, 3 + (minDepth <= 0)*5);
@@ -224,18 +231,28 @@ VE randomToken(int minDepth, int maxDepth, std::vector<VE> const& vars) {
 void main() {
 
 	VE a = 2, b = 5, c = 7;
-	VE x = randomToken(8,8,{a,b,c});
-	std::cout << "Value of x: " << x.value() << "\n";
-	std::cout << "x = " << x.printExpr() << "\n";
-	std::cout <<"Total elements in tree: " << x.countElems() << "\n";
-
-	//auto x = sqrt(pow(a*a+5*c,2*b-1));
-
+	a.varName() = 'a';
+	b.varName() = 'b';
+	c.varName() = 'c';
+	VE x = randomToken(8, 8, {a,b,c}); 
 	auto t0 = std::chrono::high_resolution_clock::now();
+	
+	for (int i = 0; i< 1000000;++i) {	
+		a.grad() = b.grad() = c.grad() = 0;
 
-	x.backward();
-
+		//std::cout << "i = "<< i <<",  x = " << x.value() << "\n";
+		//std::cout << "x = " << x.printExpr() << "\n";
+		//std::cout <<"Total elements in tree: " << x.countElems() << "\n";
+		x.backward();
+		//std::printf("%f, %f, %f\n", a.grad(), b.grad(), c.grad());
+	}
 	auto t1 = std::chrono::high_resolution_clock::now();
+	/*auto x = sqrt(pow(a*a+5*c,2*b-1));
+
+	x.backward();*/
+
+	std::cout << "x = " << x.value() << "\n";
+	//std::cout << "x = " << x.printExpr() << "\n";
 	std::cout << "Took " << std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count() << " ms\n";
 
 	std::cout << a.grad() << "\n" << b.grad() << "\n" << c.grad() << std::endl;
