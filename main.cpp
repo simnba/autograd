@@ -228,7 +228,54 @@ VE randomToken(int minDepth, int maxDepth, std::vector<VE> const& vars) {
 	}
 }
 
+#include <windows.h>
+
+void test() {
+	std::string dateTime = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+	std::ofstream file("test.c");
+
+	std::cout << "Number is " << dateTime << std::endl;
+	file << "\
+		#include <stdio.h> \
+		__declspec( dllexport )  int func(float f) { \
+		printf(\"hallo, %f, " + dateTime + "\\n\",f);\
+		return 77;\
+	}";
+	file.close();
+
+	system("tcc\\tcc.exe -c -o test.lib test.c");
+	system("tcc\\tcc.exe -shared -o test.dll test.lib");
+
+	auto hinstLib = LoadLibrary(L"test.dll");
+
+
+	typedef int(__cdecl* MYPROC)(float);
+
+
+	auto ProcAdd = (MYPROC)GetProcAddress(hinstLib, "func");
+
+	
+	if (NULL != ProcAdd)
+	{
+		std::cout << (ProcAdd)(236.23f)<<"\n";
+	}
+	
+	auto fFreeResult = FreeLibrary(hinstLib);
+
+}
+
+
+
+
 void main() {
+
+	test();
+
+	std::cout << "The End";
+	std::cin.get(); 
+	
+	return;
+
 
 	VE a = 2, b = 5, c = 7;
 	a.varName() = 'a';
@@ -257,20 +304,10 @@ void main() {
 
 	std::cout << a.grad() << "\n" << b.grad() << "\n" << c.grad() << std::endl;
 
-	/*std::string dateTime = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-	std::ofstream file("test.c");
-
-	std::cout << "Number is " << dateTime << std::endl;
-	file << "\
-		#include <stdio.h> \
-		void main() { \
-		printf(\"hallo " + dateTime + "\\n\");\
-	}";
-	file.close();
-
-	system("tcc\\tcc.exe test.c");
-	system("test.exe");*/
-
+	
+	
+	
+	
 	std::cout << "The End";
 	std::cin.get();
 }
