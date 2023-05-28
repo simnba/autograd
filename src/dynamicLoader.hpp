@@ -13,10 +13,10 @@
 		return l;
 	}
 	void* loadFunction(void* library, std::string name){
-		return GetProcAddress(library, name.c_str());
+		return GetProcAddress((HMODULE)library, name.c_str());
 	}
 	void closeLibrary(void* library){
-		if (!FreeLibrary(library))
+		if (!FreeLibrary((HMODULE)library))
 			std::cout << "ERROR: free lib\n";
 	}
 	std::string exportSpec = "__declspec(dllexport) ", libExp = ".lib", sharedLibExp = ".dll";
@@ -102,12 +102,13 @@ public:
 
 			AutoTimer at(g_timer, "compiler");
 			system(fmt::format("{2} {0} -c -o {1}{3} {1}.c", args, fileName, compiler, libExp).c_str());
-			//system(fmt::format("{2} {0} -c {1}.c", args, fileName, compiler).c_str());
 			std::cout << "Created .lib\n";
 
 			system(fmt::format("{2} {0} -shared -o {1}{4} {1}{3}", args, fileName, compiler, libExp, sharedLibExp).c_str());
-			//system(fmt::format("{2} {0} -shared {1}.o", args, fileName, compiler).c_str());
 			std::cout << "Created .dll\n";
+
+			system(fmt::format("{2} {0} -S -o {1}.asm {1}.c", args, fileName, compiler, libExp).c_str());
+			std::cout << "Created assembly\n";
 		}
 
 		std::string str = fmt::format("{}{}", fileName, sharedLibExp);

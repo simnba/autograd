@@ -5,13 +5,13 @@
 
 #include "timer.hpp"
 #include "dynamicLoader.hpp"
-#include "ve.hpp"
+#include "dual.hpp"
 
 
 #include <random>
 std::mt19937 gen(16); // Works for randomToken(8,8,{2,5,7})
 
-VE randomToken(int minDepth, int maxDepth, std::vector<VE> const& vars) {
+dual randomToken(int minDepth, int maxDepth, std::vector<dual> const& vars) {
 	std::uniform_int_distribution<> distrib((maxDepth<=0)*4, 3 + (minDepth <= 0)*5);
 	std::uniform_int_distribution<> distrib2(0, vars.size()-1);
 	int rand = distrib(gen);
@@ -53,7 +53,7 @@ void testx64() {
 
 
 template<bool COMPILED = false, bool VERBOSE = false>
-void optimize(VE& loss, std::vector<VE>& vars, int niters, float step) {
+void optimize(dual& loss, std::vector<dual>& vars, int niters, float step) {
 	auto printVars = [&]() {
 		std::cout << fmt::format("loss = {:8.4f}", loss.value());
 		for (auto& v : vars)
@@ -67,7 +67,7 @@ void optimize(VE& loss, std::vector<VE>& vars, int niters, float step) {
 			v.grad() = 0;
 
 		if (COMPILED)
-			loss.cBackward();
+			loss.backwardC();
 		else
 			loss.backward();
 
@@ -75,9 +75,9 @@ void optimize(VE& loss, std::vector<VE>& vars, int niters, float step) {
 			v.value() -= v.grad()*step;
 		
 		if (COMPILED)
-			loss.cForward();
+			loss.updateC();
 		else
-			loss.forward();
+			loss.update();
 
 		if (VERBOSE)
 			printVars();
@@ -88,19 +88,19 @@ void optimize(VE& loss, std::vector<VE>& vars, int niters, float step) {
 
 void perf() {
 	std::vector<float> initialValues = {2,5,7};
-	std::vector<VE> vars(3);
+	std::vector<dual> vars(3);
 	for (int i = 0; auto& v : vars) {
 		v.varName() = 'a'+(i++);
 	}
 
-	VE x = pow(randomToken(5, 5, vars) - 10, 2);
-	std::cout << "x = " << x.printExpr() << "\n";
+	dual x = pow(randomToken(5, 5, vars) - 10, 2);
+	std::cout << "x = " << x.exprToString() << "\n";
 
 	auto resetVars = [&]() {
 		for (int i = 0; auto& v : vars) {
 			v.value() = initialValues[i++];
 		}
-		x.forward();
+		x.update();
 	};
 
 	int nreps = 10000;
@@ -129,45 +129,51 @@ void perf() {
 }
 
 void linearRegression() {
-	const int n = 50;
+	const int n = 7;
 	float points[n][2];
-	std::normal_distribution<> dist(0, 0.0001);
+	std::normal_distribution<> dist(0, 1);
 	for (int i = 0; i < n; ++i) {
 		float x = (float)i/n; ;
 		points[i][0] = x;
 		points[i][1] = 1.2-2.3*x+x*x + dist(gen);
 	}
 
+	std::vector<float> initialValues = {1,0.1,1,0.1};
+	std::vector<dual> vars(4);
+	for (auto& v : vars)
+		v.requiresGrad() = true;
 
-	std::vector<float> initialValues = {1,1,1};
-	std::vector<VE> vars(3);
-	
-	auto model = [&](float x)->VE {
-		return vars[0] + vars[1]*x + vars[2]*x*x;
+	auto model = [&](float x)->dual {
+		dual b = vars[0] + exp(vars[1]) * dist(gen);
+		dual m = vars[2] + exp(vars[3]) * dist(gen);
+		return b + m*x;
 	};
 
-	VE mse;
-	for (int i = 0; i< n; ++i) {
-		auto& [x, y] = points[i];
-		mse = mse + pow(model(x)-y, 2);
+	int nSamples = 100;
+	dual mse;
+	for (int s = 0; s < nSamples; ++s){
+		for (int i = 0; i < n; ++i) {
+			auto& [x, y] = points[i];
+			mse = mse + pow(model(x)-y, 2);
+		}
 	}
-	mse = mse / n;
+	mse = mse / (nSamples * n);
 
 	auto resetVars = [&](bool compiled) {
 		for (int i = 0; auto& v : vars) {
 			v.value() = initialValues[i++];
 		}
 		if (compiled)
-			mse.cForward();
+			mse.updateC();
 		else
-			mse.forward();
+			mse.update();
 	};
 
 
 
 	int nreps = 1;
-	int niters = 5000;
-	float step = 0.1;
+	int niters = 100;
+	float step = 0.01;
 	{
 		AutoTimer at(g_timer, "Normal");
 		for (int i = 0; i < nreps; ++i) {
