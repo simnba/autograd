@@ -33,7 +33,7 @@ void testx64() {
 	//float valu = 5;
 	//DynamicLoader dl;
 	//auto ff = dl.addFunction("change"+std::to_string((long)&valu),
-	//						 std::format("float* f = (float*){0}; *f *= 2;",(void*)&valu));
+	//						 fmt::format("float* f = (float*){0}; *f *= 2;",(void*)&valu));
 	//dl.compileAndLoad();
 	//(*ff)();
 
@@ -47,7 +47,7 @@ void testx64() {
 	//// TEST addresses
 	//x.printExpr();
 	//for (auto& a : addrs) {
-	//	std::cout << std::format("{}", a) << " -> " << *(float*)a << "\n";
+	//	std::cout << fmt::format("{}", a) << " -> " << *(float*)a << "\n";
 	//}
 }
 
@@ -55,9 +55,9 @@ void testx64() {
 template<bool COMPILED = false, bool VERBOSE = false>
 void optimize(VE& loss, std::vector<VE> const& vars, int niters, float step) {
 	auto printVars = [&]() {
-		std::cout << std::format("loss = {:8.4f}", loss.value());
+		std::cout << fmt::format("loss = {:8.4f}", loss.value());
 		for (auto& v : vars)
-			std::cout << std::format(", {} = {:8.4f}", v.varName(), v.value());
+			std::cout << fmt::format(", {} = {:8.4f}", v.varName(), v.value());
 		std::cout << "\n";
 	};
 
@@ -194,7 +194,7 @@ void main() {
 	linearRegression();
 
 	g_timer.print();
-	std::cout << std::format("Speed-up: x{:.2}\n",
+	std::cout << fmt::format("Speed-up: x{:.2}\n",
 							 g_timer.getTotalSeconds("Normal")
 							 /g_timer.getTotalSeconds("Compiled"));
 	std::cin.get();

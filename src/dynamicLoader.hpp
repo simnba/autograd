@@ -2,7 +2,6 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <format>
 #include <vector>
 #include <map>
 
@@ -18,7 +17,7 @@ class DynamicLoader {
 public:
 	DynamicLoader(std::vector<std::string> const& includeHeaders) {
 		for(auto& h : includeHeaders)
-			entireCode += std::format("#include <{}.h>\n", h);
+			entireCode += fmt::format("#include <{}.h>\n", h);
 		entireCode += "#define v(x) (*((float*)(x)))\n";
 	}
 	~DynamicLoader() {
@@ -34,14 +33,14 @@ public:
 
 	template<>
 	cfwdfunc_t* addFunction<cfwdfunc_t>(std::string name, std::string code) {
-		entireCode += std::format("__declspec(dllexport) float {}() {{\n{}}}\n", name, code);
+		entireCode += fmt::format("__declspec(dllexport) float {}() {{\n{}}}\n", name, code);
 		auto fp = new cfwdfunc_t;
 		fwdfuncs[name] = fp;
 		return fp;
 	}
 	template<>
 	cbwdfunc_t* addFunction<cbwdfunc_t>(std::string name, std::string code) {
-		entireCode += std::format("__declspec(dllexport) void {}(float gradient) {{\n{}}}\n", name, code);
+		entireCode += fmt::format("__declspec(dllexport) void {}(float gradient) {{\n{}}}\n", name, code);
 		auto fp = new cbwdfunc_t;
 		bwdfuncs[name] = fp;
 		return fp;
@@ -67,13 +66,13 @@ public:
 			std::string args = "-O2 " + architectureFlag;
 
 			AutoTimer at(g_timer, "compiler");
-			system(std::format("{2} {0} -c -o {1}.lib {1}.c", args, fileName, compiler).c_str());
+			system(fmt::format("{2} {0} -c -o {1}.lib {1}.c", args, fileName, compiler).c_str());
 			std::cout << "Created .lib\n";
-			system(std::format("{2} {0} -shared -o {1}.dll {1}.lib", args, fileName, compiler).c_str());
+			system(fmt::format("{2} {0} -shared -o {1}.dll {1}.lib", args, fileName, compiler).c_str());
 			std::cout << "Created .dll\n";
 		}
 
-		std::string str = std::format("{}.dll", fileName);
+		std::string str = fmt::format("{}.dll", fileName);
 		library = LoadLibrary(std::wstring(str.begin(), str.end()).c_str());
 		if (!library)
 			std::cout << "ERROR: lib loading\n";
