@@ -1,4 +1,4 @@
-#include <string>
+﻿#include <string>
 #include <vector>
 
 struct grad_fn;
@@ -172,11 +172,17 @@ struct powcGrad : public grad_fn {
 		return exponent * std::pow(parents[0]->value, exponent-1);
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("pow(v({0}),{1})", (void*)(&parents[0]->value), exponent);
+		if(exponent==2)
+			ss << std::format("v({0})*v({0})", (void*)(&parents[0]->value));
+		else
+			ss << std::format("pow(v({0}),{1})", (void*)(&parents[0]->value), exponent);
 		comment = ".^"+std::to_string(exponent);
 	}
 	void generateBwd(std::stringstream& ss, int, std::string& comment) override {
-		ss << std::format("{1}*pow(v({0}),{1}-1)", (void*)(&parents[0]->value), exponent);
+		if(exponent == 2)
+			ss << std::format("2*v({0})", (void*)(&parents[0]->value), exponent);
+		else
+			ss << std::format("{1}*pow(v({0}),{1}-1)", (void*)(&parents[0]->value), exponent);
 		comment = ".^"+std::to_string(exponent);
 	}
 	std::string print(std::string l, std::string r) override { return l + "^" + std::to_string(exponent); }
@@ -244,11 +250,12 @@ public:
 		im->backward(gradient);
 	}
 	void compile(DynamicLoader& dl) {
+		AutoTimer at(g_timer, _FUNC_);
 		{
 			std::stringstream fwdCode;
-			fwdCode << std::format("float* value = 0;\n");
+			fwdCode << std::format("float value;\n");
 			im->generateUpdate(fwdCode);
-			fwdCode << std::format("return *value;\n"); 
+			fwdCode << std::format("return value;\n"); 
 			fwdFunc = dl.addFunction<cfwdfunc_t>("forward", fwdCode.str());
 		}
 		{
@@ -307,9 +314,6 @@ std::string tostr(float f) {
 std::string bracket(std::string s) {
 	return "("+s+")";
 }
-#include <set>
-std::set<void*> addrs; // just for debugging
-
 
 // Implementations
 void impl::update() {
@@ -330,15 +334,18 @@ void impl::generateUpdate(std::stringstream& ss) {
 		for (int i = 0; const auto& p : gradfn->parents)
 			p->generateUpdate(ss);
 		std::string comment;
-		ss << std::format("value = (float*){}; *value = ", (void*)&value);
-		gradfn->generateFwd(ss, comment); 
+		//ss << std::format("value = (float*){}; *value = ", (void*)&value);
+		//ss << std::format("value = *(float*){} = ", (void*)&value); 
+		ss << std::format("value = v({}) = ", (void*)&value); 
+		gradfn->generateFwd(ss, comment);
 		ss << ";" << (comment.empty() ? "" : " //"+comment) << "\n"; 
 	}
 }
 void impl::generateBwd(std::stringstream& ss) {
-	ss << std::format("grad = (float*){}; *grad += gradient;\n", (void*)&grad);
+	//ss << std::format("*(float*){} += gradient;\n", (void*)&grad);
+	ss << std::format("v({}) += gradient;\n", (void*)&grad);
 	if (gradfn) {
-		std::string old = std::format("gradient_{}", (void*)this);
+		std::string old = std::format("g{}", (void*)this);
 		ss << std::format("float {} = gradient;\n", old);
 		for (int i = 0; const auto& p : gradfn->parents) {
 			ss << std::format("gradient = {}*", old);
@@ -364,7 +371,6 @@ int impl::getPrio() const {
 	return 999;
 }
 std::string impl::printExpr() const {
-	addrs.insert((void*)&value);
 	if (gradfn) {
 		auto pl = gradfn->parents[0];
 		auto l = pl->printExpr(); if (pl->getPrio() <= getPrio()) l = bracket(l);

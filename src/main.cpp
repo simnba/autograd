@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <fstream>
 #include <chrono>
 #include <memory>
@@ -55,7 +55,7 @@ void testx64() {
 template<bool COMPILED = false, bool VERBOSE = false>
 void optimize(VE& loss, std::vector<VE> const& vars, int niters, float step) {
 	auto printVars = [&]() {
-		std::cout << std::format("loss={:8.4f}", loss.value());
+		std::cout << std::format("loss = {:8.4f}", loss.value());
 		for (auto& v : vars)
 			std::cout << std::format(", {} = {:8.4f}", v.varName(), v.value());
 		std::cout << "\n";
@@ -83,12 +83,10 @@ void optimize(VE& loss, std::vector<VE> const& vars, int niters, float step) {
 			printVars();
 	}
 	
-	//printVars();
-	//std::cout << a.grad() << "\n" << b.grad() << "\n" << c.grad() << std::endl;
+	printVars();
 }
 
-
-void main() {
+void perf() {
 	std::vector<float> initialValues = {2,5,7};
 	std::vector<VE> vars(3);
 	for (int i = 0; auto& v : vars) {
@@ -97,7 +95,7 @@ void main() {
 
 	VE x = pow(randomToken(5, 5, vars) - 10, 2);
 	std::cout << "x = " << x.printExpr() << "\n";
-	
+
 	auto resetVars = [&]() {
 		for (int i = 0; auto& v : vars) {
 			v.value() = initialValues[i++];
@@ -116,9 +114,9 @@ void main() {
 		}
 	}
 
-	std::cout << std::string(50,'-') << std::endl; // --------------------
+	std::cout << std::string(50, '-') << std::endl; // --------------------
 
-	DynamicLoader dl({"stdio","math"});
+	DynamicLoader dl({"math"});
 	x.compile(dl);
 
 	{
@@ -128,7 +126,76 @@ void main() {
 			optimize<true, false>(x, vars, niters, step);
 		}
 	}
+}
+
+void linearRegression() {
+	const int n = 50;
+	float points[n][2];
+	std::normal_distribution<> dist(0, 0.0001);
+	for (int i = 0; i < n; ++i) {
+		float x = (float)i/n; ;
+		points[i][0] = x;
+		points[i][1] = 1.2-2.3*x+x*x + dist(gen);
+	}
+
+
+	std::vector<float> initialValues = {1,1,1};
+	std::vector<VE> vars(3);
+	
+	auto model = [&](float x)->VE {
+		return vars[0] + vars[1]*x + vars[2]*x*x;
+	};
+
+	VE mse;
+	for (int i = 0; i< n; ++i) {
+		auto& [x, y] = points[i];
+		mse = mse + pow(model(x)-y, 2);
+	}
+	mse = mse / n;
+
+	auto resetVars = [&](bool compiled) {
+		for (int i = 0; auto& v : vars) {
+			v.value() = initialValues[i++];
+		}
+		if (compiled)
+			mse.cForward();
+		else
+			mse.forward();
+	};
+
+
+
+	int nreps = 1;
+	int niters = 50000;
+	float step = 0.1;
+	{
+		AutoTimer at(g_timer, "Normal");
+		for (int i = 0; i < nreps; ++i) {
+			resetVars(false);
+			optimize<false, false>(mse, vars, niters, step);
+		}
+	}
+
+	std::cout << std::string(50, '-') << std::endl; // --------------------
+
+	DynamicLoader dl({"math"});
+	mse.compile(dl);
+
+	{
+		AutoTimer at(g_timer, "Compiled");
+		for (int i = 0; i < nreps; ++i) {
+			resetVars(true);
+			optimize<true, false>(mse, vars, niters, step);
+		}
+	}
+}
+
+void main() {
+	linearRegression();
 
 	g_timer.print();
+	std::cout << std::format("Speed-up: x{:.2}\n",
+							 g_timer.getTotalSeconds("Normal")
+							 /g_timer.getTotalSeconds("Compiled"));
 	std::cin.get();
 }

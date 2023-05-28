@@ -100,7 +100,9 @@ public:
 	duration_t getCurrentDuration() const {
 		return now() - current->startTime;
 	}
-
+	float getTotalSeconds(std::string const& path) {
+		return entries["/"+path]->time;
+	}
 	void print(std::ostream& os = std::cout, bool formatOutput = true) const
 	{
 		using namespace std;
@@ -113,9 +115,9 @@ public:
 		std::function<void(Entry*, int, bool)> printEntry = [&](Entry* e, int level, bool lastChild)
 		{
 			if (!e->fullName.empty()) {
-				std::string ph = ""; for (int i = 0; i < std::max(0, level - 1); ++i) ph += "┆ ";
+				std::string ph = ""; for (int i = 0; i < std::max(0, level - 1); ++i) ph += "| ";
 				std::cout << std::format("{:<46} : {:>8} | {:>10.6f} | {:>10.6f}",
-				           ph + (level ? lastChild ? "└╴" : "├╴" : "") + e->name,
+				           ph + (level ? lastChild ? "|-" : "|-" : "") + e->name,
 				           e->count, e->time, (e->time / e->count));
 
 				std::cout << std::format("\n");
