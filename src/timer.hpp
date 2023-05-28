@@ -1,6 +1,8 @@
 ﻿#pragma once
 #define FMT_HEADER_ONLY
-#include <format>
+#include "fmt/format.h"
+#include "fmt/color.h"
+#include <fmt/ostream.h>
 
 #include <iostream>
 #include <chrono>
@@ -34,6 +36,36 @@ inline std::string _normal_func_name(std::string full) {
 #include <x86intrin.h>
 #endif
 
+FMT_BEGIN_NAMESPACE
+FMT_MODULE_EXPORT template <typename Char>
+void vprint(std::basic_ostream<Char>& os,
+			text_style const& ts,
+			basic_string_view<type_identity_t<Char>> format_str,
+			basic_format_args<buffer_context<type_identity_t<Char>>> args) {
+	auto buffer = basic_memory_buffer<Char>();
+	detail::vformat_to(buffer, ts, format_str, args);
+	if (detail::write_ostream_unicode(os, {buffer.data(), buffer.size()})) return;
+	detail::write_buffer(os, buffer);
+}
+namespace detail {
+inline void vprint_directly(std::ostream& os, text_style const& ts, string_view format_str,
+							format_args args) {
+	auto buffer = memory_buffer();
+	vformat_to(buffer, ts, format_str, args);
+	write_buffer(os, buffer);
+}
+}
+FMT_MODULE_EXPORT template <typename... T>
+void print(std::ostream& os, text_style const& ts, format_string<T...> fmt, T&&... args) {
+	const auto& vargs = fmt::make_format_args(args...);
+	if (detail::is_utf8())
+		vprint(os, ts, fmt, vargs);
+	else
+		detail::vprint_directly(os, fmt, vargs);
+}
+FMT_END_NAMESPACE
+
+
 class Timer
 {
 	std::chrono::high_resolution_clock hrc;
@@ -58,7 +90,7 @@ class Timer
 public:
 	Timer()
 	{
-		current = new Entry{ "" };
+		current = new Entry{""};
 	}
 	~Timer()
 	{
@@ -75,7 +107,7 @@ public:
 		Entry* e = entries[fullName];
 		if (!e)
 		{
-			e = new Entry{ cat,fullName,0,0,current };
+			e = new Entry{cat,fullName,0,0,current};
 			entries[fullName] = e;
 			current->children.push_back(e);
 		}
@@ -87,7 +119,7 @@ public:
 		using namespace std::chrono;
 		if (!current->mommy)
 		{
-			std::cout << std::format("WARNING: Timer stopped more often than started.\n");
+			fmt::print(fg(fmt::color::orange), "WARNING: Timer stopped more often than started.\n");
 			return -1;
 		}
 		auto end = now();
@@ -100,35 +132,36 @@ public:
 	duration_t getCurrentDuration() const {
 		return now() - current->startTime;
 	}
-	float getTotalSeconds(std::string const& path) {
-		return entries["/"+path]->time;
+	float getTotalSeconds(std::string name) const {
+		return entries.at("/"+name)->time;
 	}
+
 	void print(std::ostream& os = std::cout, bool formatOutput = true) const
 	{
 		using namespace std;
 
-		std::cout << std::format("\n{}\n", string(83, '='));
-
+		fmt::text_style rowCols[] = {fmt::text_style(), bg(fmt::color::dark_slate_gray)};
 		int rowIdx = 0;
-		std::cout << std::format(
-				   "{:<46} : {:>8} | {:>10} | {:>10}\n","Function","Count","Time [s]","Time/Call");
+		fmt::print(bg(fmt::color::teal),
+				   "{:<46} : {:>8} | {:>10} | {:>10}", "Function", "Count", "Time [s]", "Time/Call");
+		fmt::print(rowCols[0], "\n");
 		std::function<void(Entry*, int, bool)> printEntry = [&](Entry* e, int level, bool lastChild)
 		{
 			if (!e->fullName.empty()) {
 				std::string ph = ""; for (int i = 0; i < std::max(0, level - 1); ++i) ph += "| ";
-				std::cout << std::format("{:<46} : {:>8} | {:>10.6f} | {:>10.6f}",
-				           ph + (level ? lastChild ? "|-" : "|-" : "") + e->name,
-				           e->count, e->time, (e->time / e->count));
+				fmt::print(rowCols[(rowIdx++) % 2], "{:<46} : {:>8} | {:>10.6f} | {:>10.6f}",
+						   ph + (level ? lastChild ? "\\-" : "|-" : "") + e->name,
+						   e->count, e->time, (e->time / e->count));
 
-				std::cout << std::format("\n");
+				fmt::print(rowCols[0], "\n");
 			}
-			for (int i = 0;i<e->children.size();++i)
+			for (int i = 0; i<e->children.size(); ++i)
 				printEntry(e->children[i], level + 1, i == e->children.size()-1);
 		};
 		Entry* root = current; while (root->mommy) { root = root->mommy; }
 		printEntry(root, -1, false);
 
-		std::cout << std::format("\n{}\n", string(83, '='));
+		fmt::print(fmt::text_style(), "\n{}\n", string(83, '='));
 	}
 };
 enum verbosity {
@@ -137,9 +170,9 @@ enum verbosity {
 	eAdditional = 2 // info
 };
 #if defined DEBUG
-	verbosity g_verb = eAdditional;
+verbosity g_verb = eAdditional;
 #else
-	verbosity g_verbosity = eAdditional;
+verbosity g_verbosity = eAdditional;
 #endif
 
 class AutoTimer

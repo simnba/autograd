@@ -49,7 +49,7 @@ struct addGrad : public grad2_fn {
 		return 1;
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("v({0}) + v({1})",
+		ss << fmt::format("v({0}) + v({1})",
 						  (void*)(&parents[0]->value),
 						  (void*)(&parents[1]->value));
 		comment = "+";
@@ -70,7 +70,7 @@ struct subGrad : public grad2_fn {
 		return 1-2*i;
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("v({0}) - v({1})",
+		ss << fmt::format("v({0}) - v({1})",
 						  (void*)(&parents[0]->value),
 						  (void*)(&parents[1]->value));
 		comment = "-";
@@ -91,13 +91,13 @@ struct mulGrad : public grad2_fn {
 		return parents[1-i]->value;
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("v({0}) * v({1})",
+		ss << fmt::format("v({0}) * v({1})",
 						  (void*)(&parents[0]->value),
 						  (void*)(&parents[1]->value));
 		comment = "*";
 	}
 	void generateBwd(std::stringstream& ss, int i, std::string& comment) override {
-		ss << std::format("v({})", (void*)(&parents[1-i]->value));
+		ss << fmt::format("v({})", (void*)(&parents[1-i]->value));
 		comment = i==0 ? ".*" : "*.";
 	}
 	std::string print(std::string l, std::string r) override { return l+"*"+r; }
@@ -117,7 +117,7 @@ struct divGrad : public grad2_fn {
 		}
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("v({0}) / v({1})",
+		ss << fmt::format("v({0}) / v({1})",
 						  (void*)(&parents[0]->value),
 						  (void*)(&parents[1]->value));
 		comment = "./.";
@@ -125,11 +125,11 @@ struct divGrad : public grad2_fn {
 	void generateBwd(std::stringstream& ss, int i, std::string& comment) override {
 		switch (i) {
 		case 0:
-			ss << std::format("1.f/v({})", (void*)(&parents[1]->value));
+			ss << fmt::format("1.f/v({})", (void*)(&parents[1]->value));
 			comment = "./";
 			break;
 		case 1:
-			ss << std::format("-v({0})/(v({1})*v({1}))",
+			ss << fmt::format("-v({0})/(v({1})*v({1}))",
 							  (void*)(&parents[0]->value), (void*)(&parents[1]->value));
 			comment = "/.";
 			break;
@@ -147,12 +147,12 @@ struct sqrtGrad : public grad1_fn {
 		return 0.5f/sqrt(parents[0]->value);
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("sqrt(v({0}))",
+		ss << fmt::format("sqrt(v({0}))",
 						  (void*)(&parents[0]->value));
 		comment = "sqrt";
 	}
 	void generateBwd(std::stringstream& ss, int i, std::string& comment) override {
-		ss << std::format("0.5f/sqrt(v({0}))",
+		ss << fmt::format("0.5f/sqrt(v({0}))",
 						  (void*)(&parents[0]->value));
 		comment = "sqrt";
 	}
@@ -173,16 +173,16 @@ struct powcGrad : public grad_fn {
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
 		if(exponent==2)
-			ss << std::format("v({0})*v({0})", (void*)(&parents[0]->value));
+			ss << fmt::format("v({0})*v({0})", (void*)(&parents[0]->value));
 		else
-			ss << std::format("pow(v({0}),{1})", (void*)(&parents[0]->value), exponent);
+			ss << fmt::format("pow(v({0}),{1})", (void*)(&parents[0]->value), exponent);
 		comment = ".^"+std::to_string(exponent);
 	}
 	void generateBwd(std::stringstream& ss, int, std::string& comment) override {
 		if(exponent == 2)
-			ss << std::format("2*v({0})", (void*)(&parents[0]->value), exponent);
+			ss << fmt::format("2*v({0})", (void*)(&parents[0]->value), exponent);
 		else
-			ss << std::format("{1}*pow(v({0}),{1}-1)", (void*)(&parents[0]->value), exponent);
+			ss << fmt::format("{1}*pow(v({0}),{1}-1)", (void*)(&parents[0]->value), exponent);
 		comment = ".^"+std::to_string(exponent);
 	}
 	std::string print(std::string l, std::string r) override { return l + "^" + std::to_string(exponent); }
@@ -200,17 +200,17 @@ struct powGrad : public grad2_fn {
 		}
 	}
 	void generateFwd(std::stringstream& ss, std::string& comment) override {
-		ss << std::format("pow(v({0}),v({1}))", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
+		ss << fmt::format("pow(v({0}),v({1}))", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
 		comment = ".^.";
 	}
 	void generateBwd(std::stringstream& ss, int i, std::string& comment) override {
 		switch (i) {
 		case 0:	
-			ss << std::format("{1}*pow(v({0}),v({1})-1)", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
+			ss << fmt::format("{1}*pow(v({0}),v({1})-1)", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
 			comment = ".^";
 			break;
 		case 1: 
-			ss << std::format("pow(v({0}),v({1})) * log(v({0}))", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
+			ss << fmt::format("pow(v({0}),v({1})) * log(v({0}))", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
 			comment = "^."; 
 			break;
 		}
@@ -253,14 +253,14 @@ public:
 		AutoTimer at(g_timer, _FUNC_);
 		{
 			std::stringstream fwdCode;
-			fwdCode << std::format("float value;\n");
+			fwdCode << fmt::format("float value;\n");
 			im->generateUpdate(fwdCode);
-			fwdCode << std::format("return value;\n"); 
+			fwdCode << fmt::format("return value;\n"); 
 			fwdFunc = dl.addFunction<cfwdfunc_t>("forward", fwdCode.str());
 		}
 		{
 			std::stringstream bwdCode;
-			bwdCode << std::format("float* grad = 0;\n");
+			bwdCode << fmt::format("float* grad = 0;\n");
 			im->generateBwd(bwdCode);
 			bwdFunc = dl.addFunction<cbwdfunc_t>("backward", bwdCode.str());
 		}
@@ -334,21 +334,21 @@ void impl::generateUpdate(std::stringstream& ss) {
 		for (int i = 0; const auto& p : gradfn->parents)
 			p->generateUpdate(ss);
 		std::string comment;
-		//ss << std::format("value = (float*){}; *value = ", (void*)&value);
-		//ss << std::format("value = *(float*){} = ", (void*)&value); 
-		ss << std::format("value = v({}) = ", (void*)&value); 
+		//ss << fmt::format("value = (float*){}; *value = ", (void*)&value);
+		//ss << fmt::format("value = *(float*){} = ", (void*)&value); 
+		ss << fmt::format("value = v({}) = ", (void*)&value); 
 		gradfn->generateFwd(ss, comment);
 		ss << ";" << (comment.empty() ? "" : " //"+comment) << "\n"; 
 	}
 }
 void impl::generateBwd(std::stringstream& ss) {
-	//ss << std::format("*(float*){} += gradient;\n", (void*)&grad);
-	ss << std::format("v({}) += gradient;\n", (void*)&grad);
+	//ss << fmt::format("*(float*){} += gradient;\n", (void*)&grad);
+	ss << fmt::format("v({}) += gradient;\n", (void*)&grad);
 	if (gradfn) {
-		std::string old = std::format("g{}", (void*)this);
-		ss << std::format("float {} = gradient;\n", old);
+		std::string old = fmt::format("g{}", (void*)this);
+		ss << fmt::format("float {} = gradient;\n", old);
 		for (int i = 0; const auto& p : gradfn->parents) {
-			ss << std::format("gradient = {}*", old);
+			ss << fmt::format("gradient = {}*", old);
 			std::string comment;
 			gradfn->generateBwd(ss, i, comment);
 			ss << ";" << (comment.empty() ? "" : " //"+comment) << "\n";
