@@ -53,7 +53,7 @@ void testx64() {
 
 
 template<bool COMPILED = false, bool VERBOSE = false>
-void optimize(VE& loss, std::vector<VE> const& vars, int niters, float step) {
+void optimize(VE& loss, std::vector<VE>& vars, int niters, float step) {
 	auto printVars = [&]() {
 		std::cout << fmt::format("loss = {:8.4f}", loss.value());
 		for (auto& v : vars)
@@ -166,7 +166,7 @@ void linearRegression() {
 
 
 	int nreps = 1;
-	int niters = 50000;
+	int niters = 5000;
 	float step = 0.1;
 	{
 		AutoTimer at(g_timer, "Normal");
@@ -190,7 +190,7 @@ void linearRegression() {
 	}
 }
 
-void main() {
+int main() {
 	linearRegression();
 
 	g_timer.print();
@@ -198,4 +198,5 @@ void main() {
 							 g_timer.getTotalSeconds("Normal")
 							 /g_timer.getTotalSeconds("Compiled"));
 	std::cin.get();
+	return 0;
 }

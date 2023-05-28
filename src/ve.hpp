@@ -112,7 +112,7 @@ struct divGrad : public grad2_fn {
 		switch (i) {
 		case 0:
 			return 1.f/parents[1]->value;
-		case 1:
+		default:
 			return -parents[0]->value/(parents[1]->value*parents[1]->value);
 		}
 	}
@@ -237,12 +237,10 @@ public:
 		im->value = v;
 		return *this;
 	}
-	auto& value(this auto&& self) {
-		return self.im->value;
-	}
-	auto& grad(this auto&& self) {
-		return self.im->grad;
-	}
+	float& value() { return im->value; }
+	const float& value() const { return im->value; }
+	float& grad() { return im->grad; }
+	const float& grad() const { return im->grad; }
 	void forward() {
 		im->update();
 	}

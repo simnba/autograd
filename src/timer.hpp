@@ -4,6 +4,7 @@
 #include "fmt/color.h"
 #include <fmt/ostream.h>
 
+
 #include <iostream>
 #include <chrono>
 #include <vector>
@@ -37,7 +38,7 @@ inline std::string _normal_func_name(std::string full) {
 #endif
 
 FMT_BEGIN_NAMESPACE
-FMT_MODULE_EXPORT template <typename Char>
+template <typename Char>
 void vprint(std::basic_ostream<Char>& os,
 			text_style const& ts,
 			basic_string_view<type_identity_t<Char>> format_str,
@@ -55,7 +56,7 @@ inline void vprint_directly(std::ostream& os, text_style const& ts, string_view 
 	write_buffer(os, buffer);
 }
 }
-FMT_MODULE_EXPORT template <typename... T>
+template <typename... T>
 void print(std::ostream& os, text_style const& ts, format_string<T...> fmt, T&&... args) {
 	const auto& vargs = fmt::make_format_args(args...);
 	if (detail::is_utf8())
@@ -184,8 +185,6 @@ public:
 	AutoTimer(Timer& t, std::string const& cat, verbosity v = eBasic)
 	{
 		if (v <= g_verbosity) {
-			if (omp_in_parallel())
-				return; // Timer is not thread safe. Avoid UB.
 			timer = std::addressof(t);
 			timer->start(cat);
 		}
