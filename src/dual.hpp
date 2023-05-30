@@ -2,14 +2,24 @@
 #include <vector>
 #include <iterator>
 
+std::string tostr(float f) {
+	std::ostringstream oss;
+	oss << std::setprecision(3) << std::noshowpoint << f;
+	return oss.str();
+}
+std::string bracket(std::string s) {
+	return "("+s+")";
+}
+
+
 struct grad_fn;
 
 struct impl {
+	static inline std::map<const impl*, std::string> namedict;
 	float value;
 	float grad;
 	grad_fn* gradfn;
 	bool requiresGrad = true; 
-	char varname = ' ';
 	void update(); 
 	void backward(float gradient = 1.f);
 	void generateUpdate(std::stringstream& ss); 
@@ -17,6 +27,13 @@ struct impl {
 	int countElems() const;
 	std::string printExpr() const;
 	int getPrio() const;
+	
+	std::string getVarName() const {
+		if (impl::namedict.contains(this))
+			return impl::namedict.at(this);
+		else
+			return "";
+	}
 };
 
 using implp_t = std::shared_ptr<impl>;
@@ -26,7 +43,7 @@ struct grad_fn {
 	virtual float fwd() = 0;
 	virtual float bwd(int i) = 0; // computes derivative wrt the i-th parent
 	virtual void generateFwd(std::stringstream& ss, std::string const& old, std::string& comment) = 0;
-	virtual void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) = 0;
+	virtual void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) = 0;
 	virtual std::string print(std::string l, std::string r) = 0;
 	virtual int getPrio() const = 0;
 };
@@ -56,7 +73,7 @@ struct addGrad : public grad2_fn {
 						  (void*)(&parents[1]->value));
 		comment = "+";
 	}
-	void generateBwd(std::stringstream& ss, int, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int, std::string const& old, impl const& result, std::string& comment) override {
 		ss << old;
 		comment = "+";
 	}
@@ -77,7 +94,7 @@ struct subGrad : public grad2_fn {
 						  (void*)(&parents[1]->value));
 		comment = "-";
 	}
-	void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) override {
 		ss << (i==0?old:"-"+old);
 		comment = i==0 ? ".-" : "-.";
 	}
@@ -98,7 +115,7 @@ struct mulGrad : public grad2_fn {
 						  (void*)(&parents[1]->value));
 		comment = "*";
 	}
-	void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) override {
 		ss << fmt::format("{}*v({})", old, (void*)(&parents[1-i]->value));
 		comment = i==0 ? ".*" : "*.";
 	}
@@ -124,7 +141,7 @@ struct divGrad : public grad2_fn {
 						  (void*)(&parents[1]->value));
 		comment = "./.";
 	}
-	void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) override {
 		switch (i) {
 		case 0:
 			ss << fmt::format("{}/v({})", old, (void*)(&parents[1]->value));
@@ -153,7 +170,7 @@ struct sqrtGrad : public grad1_fn {
 						  (void*)(&parents[0]->value));
 		comment = "sqrt";
 	}
-	void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) override {
 		ss << fmt::format("0.5f*{0}/sqrt(v({1}))", old,
 						  (void*)(&parents[0]->value));
 		comment = "sqrt";
@@ -174,12 +191,11 @@ struct expGrad : public grad1_fn {
 						  (void*)(&parents[0]->value));
 		comment = "exp";
 	}
-	void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) override {
-		ss << fmt::format("{0}*exp(v({1}))", old,
-						  (void*)(&parents[0]->value));
+	void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) override {
+		ss << fmt::format("{0}*v({1})", old, (void*)(&result.value));
 		comment = "exp";
 	}
-	std::string print(std::string l, std::string r) override { return "exp("+l+")"; }
+	std::string print(std::string l, std::string r) override { return "Exp["+l+"]"; }
 	int getPrio() const { return 0; }
 };
 struct powcGrad : public grad_fn {
@@ -201,14 +217,14 @@ struct powcGrad : public grad_fn {
 			ss << fmt::format("pow(v({0}),{1})", (void*)(&parents[0]->value), exponent);
 		comment = ".^"+std::to_string(exponent);
 	}
-	void generateBwd(std::stringstream& ss, int, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int, std::string const& old, impl const& result, std::string& comment) override {
 		if(exponent == 2)
 			ss << fmt::format("{1}*2*v({0})", (void*)(&parents[0]->value), old);
 		else
 			ss << fmt::format("{2}*{1}*pow(v({0}),{1}-1)", (void*)(&parents[0]->value), exponent,old);
 		comment = ".^"+std::to_string(exponent);
 	}
-	std::string print(std::string l, std::string r) override { return l + "^" + std::to_string(exponent); }
+	std::string print(std::string l, std::string r) override { return l + "^" + tostr(exponent); }
 	int getPrio() const { return 3; }
 };
 struct powGrad : public grad2_fn {
@@ -226,7 +242,7 @@ struct powGrad : public grad2_fn {
 		ss << fmt::format("pow(v({0}),v({1}))", (void*)(&parents[0]->value), (void*)(&parents[1]->value));
 		comment = ".^.";
 	}
-	void generateBwd(std::stringstream& ss, int i, std::string const& old, std::string& comment) override {
+	void generateBwd(std::stringstream& ss, int i, std::string const& old, impl const& result, std::string& comment) override {
 		switch (i) {
 		case 0:	
 			ss << fmt::format("{2}*{1}*pow(v({0}),v({1})-1)", (void*)(&parents[0]->value), (void*)(&parents[1]->value), old);
@@ -263,8 +279,11 @@ public:
 	const float& value() const { return im->value; }
 	float& grad() { return im->grad; }
 	const float& grad() const { return im->grad; }
-	char& varName() {
-		return im->varname;
+	void setVarName(std::string const& name) {
+		impl::namedict.insert(std::make_pair(im.get(), name));
+	}
+	std::string getVarName() const {
+		return im->getVarName();
 	}
 	bool& requiresGrad() {
 		return im->requiresGrad;
@@ -302,7 +321,7 @@ public:
 	int getNumNodes() const {
 		return im->countElems();
 	}
-	std::string exprToString() const {
+	std::string getExprString() const {
 		return im->printExpr();
 	}
 	
@@ -340,14 +359,8 @@ public:
 };
 
 
-std::string tostr(float f) {
-	std::ostringstream oss;
-	oss << std::setprecision(3) << std::noshowpoint << f;
-	return oss.str();
-}
-std::string bracket(std::string s) {
-	return "("+s+")";
-}
+#include <set>
+std::set<impl const*> counters;
 
 // Implementations
 void impl::update() {
@@ -358,12 +371,15 @@ void impl::update() {
 	}
 }
 void impl::backward(float gradient) {
-	if (!requiresGrad)
-		return;
+	/*if (!requiresGrad)
+		return;*/
 	grad += gradient;
 	if (gradfn)  // if I am the result of an operation
-		for (int i = 0; const auto& p : gradfn->parents)  // iteration over all the operands
-			p->backward(gradfn->bwd(i++) * gradient);
+		for (int i = 0; const auto& p : gradfn->parents) { // iteration over all the operands
+			if (p->requiresGrad)
+				p->backward(gradfn->bwd(i) * gradient);
+			++i;
+		}
 }
 void impl::generateUpdate(std::stringstream& ss) {
 	if (gradfn) {
@@ -376,18 +392,24 @@ void impl::generateUpdate(std::stringstream& ss) {
 	}
 }
 void impl::generateBackward(std::stringstream& ss) {
-	if (!requiresGrad)
-		return;
+	/*if (!requiresGrad)
+		return;*/
 	ss << fmt::format("v({}) += gradient;\n", (void*)&grad);
 	if (gradfn) {
+		bool existing = counters.contains(this);
+		counters.insert(this);
 		std::string old = fmt::format("g{}", (void*)this);
-		ss << fmt::format("float {} = gradient;\n", old);
+		if (!existing)
+			ss << "float ";
+		ss << fmt::format("{} = gradient; \n", old);
 		for (int i = 0; const auto& p : gradfn->parents) {
-			ss << fmt::format("gradient = ");
-			std::string comment;
-			gradfn->generateBwd(ss, i, old, comment);
-			ss << ";" << (comment.empty() ? "" : " //"+comment) << "\n";
-			p->generateBackward(ss);
+			if (p->requiresGrad) {
+				ss << fmt::format("gradient = ");
+				std::string comment;
+				gradfn->generateBwd(ss, i, old, *this, comment);
+				ss << ";" << (comment.empty() ? "" : " //"+comment) << "\n";
+				p->generateBackward(ss);
+			}
 			++i;
 		}
 	}
@@ -418,6 +440,8 @@ std::string impl::printExpr() const {
 		return gradfn->print(l, r);
 	}
 	else {
-		return varname == ' ' ? tostr(value) : std::string(1, varname);
+		//return std::format("{}",(void*)this);
+		std::string s = getVarName();
+		return s.empty() ? tostr(value) : s;
 	}
 }
