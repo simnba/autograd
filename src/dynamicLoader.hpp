@@ -98,7 +98,7 @@ public:
 			compiler = "tcc\\tcc.exe";
 			std::cout << "Mode is x32\n";
 #endif
-			std::string args = "-O2 " + architectureFlag;
+			std::string args = "-O3 -ffast-math " + architectureFlag;
 
 			AutoTimer at(g_timer, "compiler");
 			system(fmt::format("{2} {0} -c -o {1}{3} {1}.c", args, fileName, compiler, libExp).c_str());

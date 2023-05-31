@@ -133,7 +133,9 @@ public:
 	duration_t getCurrentDuration() const {
 		return now() - current->startTime;
 	}
-	float getTotalSeconds(std::string name) const {
+	float getTotalSeconds(std::string const& name) const {
+		if (!entries.contains(name))
+			return 0;
 		return entries.at("/"+name)->time;
 	}
 
@@ -151,7 +153,7 @@ public:
 			if (!e->fullName.empty()) {
 				std::string ph = ""; for (int i = 0; i < std::max(0, level - 1); ++i) ph += "| ";
 				fmt::print(rowCols[(rowIdx++) % 2], "{:<46} : {:>8} | {:>10.6f} | {:>10.6f}",
-						   ph + (level ? lastChild ? "\\-" : "|-" : "") + e->name,
+						   ph + (level ? lastChild ? "`-" : "|-" : "") + e->name,
 						   e->count, e->time, (e->time / e->count));
 
 				fmt::print(rowCols[0], "\n");

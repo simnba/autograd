@@ -51,6 +51,14 @@ void testx64() {
 	//}
 }
 
+/* max. rel. error = 3.55959567e-2 on [-87.33654, 88.72283] */
+__m128 FastExpSse(__m128 x)
+{
+	__m128 a = _mm_set1_ps(12102203.0f); /* (1 << 23) / log(2) */
+	__m128i b = _mm_set1_epi32(127 * (1 << 23) - 298765);
+	__m128i t = _mm_add_epi32(_mm_cvtps_epi32(_mm_mul_ps(a, x)), b);
+	return _mm_castsi128_ps(t);
+}
 
 template<bool COMPILED = false>
 void optimize(dual& loss, std::vector<dual>& vars, int niters, float step, std::function<void()> const& printVars = nullptr) {
@@ -120,21 +128,26 @@ void optimize(dual& loss, std::vector<dual>& vars, int niters, float step, std::
 
 void linearRegression() {
 	
-	const int nPoints = 3;
+	const int nPoints = 7;
 	int nSamples = 2;
-	int nReps = 10;
+	int nReps = 1;
 	int nIters = 1000;
-	float step = 0.1;
+	float step = 0.05;
 
-
+	// Generate points
 	float points[nPoints][2];
 	std::normal_distribution<> dist(0, 1);
 	for (int i = 0; i < nPoints; ++i) {
 		float x = (float)i/nPoints; ;
 		points[i][0] = x;
-		points[i][1] = 1.2-2.3*x+x*x + dist(gen);
+		points[i][1] = 1.2 - 2.3*x + x*x*0 + 0.1*dist(gen);
 	}
 
+	// Save points to file
+	std::ofstream pointFile("points.txt");
+	for (auto& p : points)
+		pointFile << p[0] << " " << p[1] << "\n";
+	pointFile.close();
 	
 	struct Model {
 		std::vector<float> initialValues = {1,0.1,1,0.1};
@@ -143,7 +156,7 @@ void linearRegression() {
 		Model() {
 			vars.resize(4);
 			for (auto& v : vars)
-				v.requiresGrad() = true;
+				v.setRequiresGrad(true);
 			vars[0].setVarName("bmu");
 			vars[1].setVarName("bsg");
 			vars[2].setVarName("mmu");
@@ -169,6 +182,7 @@ void linearRegression() {
 
 	dual mse;
 	for (int s = 0; s < nSamples; ++s){
+		model.sample();
 		for (int i = 0; i < nPoints; ++i) {
 			auto& [x, y] = points[i];
 			mse = mse + pow(model(x)-y, 2);
@@ -184,21 +198,23 @@ void linearRegression() {
 	};
 
 	std::cout << mse.getExprString() << "\n";
-	std::cout << "Leaf count: " << mse.getNumNodes() << "\n";
+	auto counter = mse.getNumNodes();
+	fmt::print("Leaf count: {}, num constants: {}, num req. gradient: {}, num nograd: {}\n",
+			   counter.nNodes, counter.nConstants, counter.nReqGrad, counter.nNodes-counter.nConstants-counter.nReqGrad);
 
 	{
 		AutoTimer at(g_timer, "Normal");
 		for (int i = 0; i < nReps; ++i) {
 			model.reset();
 			mse.update();
-			optimize<false>(mse, model.vars, nIters, step);
+			optimize<false>(mse, model.vars, nIters, step, printVars);
 		}
 	}
 	printVars();
 
 	std::cout << std::string(50, '-') << std::endl; // --------------------
 
-	DynamicLoader dl({"math"});
+	/*DynamicLoader dl({"math"});
 	mse.compile(dl);
 
 	{
@@ -209,7 +225,13 @@ void linearRegression() {
 			optimize<true>(mse, model.vars, nIters, step);
 		}
 	}
-	printVars();
+	printVars();*/
+
+	// Save result parameters to file
+	std::ofstream paramFile("params.txt");
+	for (auto& v : model.vars)
+		paramFile << v.value() << "\n";
+	paramFile.close();
 }
 
 int main() {
